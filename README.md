@@ -22,7 +22,7 @@ fotoğrafını çek → yapay zeka saniyeler içinde **fiyatını belirlesin** v
 | Katman | Teknoloji |
 |--------|-----------|
 | Frontend | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS |
-| AI | Google Gemini API — vision + structured output (`gemini-1.5-flash`) |
+| AI | Google Gemini API — vision + structured output (`gemini-2.5-flash`) |
 | Limitleme | Bellek-içi IP bazlı (MVP) — üretimde Supabase/Upstash'a taşınmalı |
 | Deploy | Vercel (önerilen) |
 
@@ -48,7 +48,7 @@ npm run dev
 | Değişken | Açıklama | Varsayılan |
 |----------|----------|------------|
 | `GEMINI_API_KEY` | Google Gemini API anahtarı (zorunlu) | — |
-| `GEMINI_MODEL` | Kullanılacak model | `gemini-1.5-flash` |
+| `GEMINI_MODEL` | Kullanılacak model | `gemini-2.5-flash` |
 | `FREE_DAILY_LIMIT` | IP başına günlük ücretsiz tarama | `2` |
 
 ## Proje yapısı
