@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Bu Ne Kadar Eder?",
+  "version": "0.1.0",
+  "description": "Açık olan ilan sayfasından ürünü okur, yapay zeka ile fiyatlar ve ilan metni üretir.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["http://localhost:3000/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Bu Ne Kadar Eder? ile fiyatla"
+  }
+}
