@@ -11,6 +11,46 @@ const BROWSER_UA =
 const ALLOWED_IMG = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMG_BYTES = 6 * 1024 * 1024;
 
+// Opsiyonel: bot korumasını (Akamai/DataDome/Cloudflare) geçmek için ticari
+// "web unlocker" / scraping servisi. Anahtar tanımlıysa doğrudan fetch başarısız
+// olduğunda (challenge sayfası) otomatik devreye girer.
+const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
+const SCRAPER_PROVIDER = (process.env.SCRAPER_PROVIDER || "scrapingbee").toLowerCase();
+
+function unlockerUrl(target: string): string | null {
+  if (!SCRAPER_API_KEY) return null;
+  const enc = encodeURIComponent(target);
+  switch (SCRAPER_PROVIDER) {
+    case "scrapingbee":
+      return `https://app.scrapingbee.com/api/v1/?api_key=${SCRAPER_API_KEY}&url=${enc}&render_js=true&premium_proxy=true&country_code=tr`;
+    case "scraperapi":
+      return `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${enc}&render=true&ultra_premium=true&country_code=tr`;
+    case "zenrows":
+      return `https://api.zenrows.com/v1/?apikey=${SCRAPER_API_KEY}&url=${enc}&js_render=true&antibot=true&proxy_country=tr`;
+    case "scrapingant":
+      return `https://api.scrapingant.com/v2/general?url=${enc}&x-api-key=${SCRAPER_API_KEY}&browser=true&proxy_country=tr`;
+    case "scrapfly":
+      return `https://api.scrapfly.io/scrape?key=${SCRAPER_API_KEY}&url=${enc}&render_js=true&asp=true&country=tr`;
+    default:
+      return null;
+  }
+}
+
+// Dönen HTML bir bot-challenge / koruma sayfası mı? (gerçek içerik değil)
+function isBotChallenge(html: string): boolean {
+  if (/challenge validation|_sec\/cp_challenge|sec-cpt-if|cp_clge_done|distil_r_captcha/i.test(html)) {
+    return true;
+  }
+  // Çok küçük gövde + bilinen koruma imzaları
+  if (
+    html.length < 2500 &&
+    /akamai|_abck|datadome|perimeterx|px-captcha|cf-browser-verification|just a moment/i.test(html)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export interface ScrapedListing {
   title: string;
   description: string;
@@ -125,6 +165,45 @@ function extractImageUrl(html: string, base: string): string | undefined {
   }
 }
 
+// Sayfa HTML'ini getirir: önce doğrudan, bot koruması varsa (anahtar tanımlıysa)
+// ticari unlocker servisi üzerinden. İçerik yoksa net hata fırlatır.
+async function getListingHtml(url: URL): Promise<string> {
+  let direct = "";
+  try {
+    const res = await fetchWithTimeout(
+      url.toString(),
+      { headers: { "User-Agent": BROWSER_UA, "Accept-Language": "tr,en;q=0.8", Accept: "text/html" } },
+      12000,
+    );
+    if (res.ok) direct = await res.text();
+  } catch {
+    /* doğrudan erişim başarısız → unlocker'a düş */
+  }
+
+  if (direct && !isBotChallenge(direct)) return direct;
+
+  // Bot koruması veya boş yanıt → unlocker servisi varsa onunla dene
+  const via = unlockerUrl(url.toString());
+  if (via) {
+    const res = await fetchWithTimeout(via, { headers: { "User-Agent": BROWSER_UA } }, 45000);
+    if (res.ok) {
+      const html = await res.text();
+      if (html && !isBotChallenge(html)) return html;
+    }
+    throw new Error(
+      "Sayfa bot koruması arkasında ve scraping servisi de geçemedi. Tarayıcı eklentisini kullanın.",
+    );
+  }
+
+  if (direct) {
+    throw new Error(
+      "Bu site otomatik erişimi engelliyor (Akamai/DataDome gibi bot koruması). " +
+        "Tarayıcı eklentisini kullanın — sayfayı kendi tarayıcınızda okur ve engele takılmaz.",
+    );
+  }
+  throw new Error("Sayfa alınamadı. Tarayıcı eklentisini kullanın veya fotoğraf yükleyin.");
+}
+
 export async function fetchListing(rawUrl: string): Promise<ScrapedListing> {
   let url: URL;
   try {
@@ -135,25 +214,16 @@ export async function fetchListing(rawUrl: string): Promise<ScrapedListing> {
   if (!/^https?:$/.test(url.protocol)) throw new Error("Sadece http/https linkleri desteklenir.");
   assertPublicHost(url.hostname);
 
-  const res = await fetchWithTimeout(
-    url.toString(),
-    { headers: { "User-Agent": BROWSER_UA, "Accept-Language": "tr,en;q=0.8", Accept: "text/html" } },
-    12000,
-  );
-  if (!res.ok) {
-    throw new Error(
-      `Sayfa alınamadı (HTTP ${res.status}). Site otomatik erişimi engelliyor olabilir — fotoğraf yükleyerek deneyin.`,
-    );
-  }
-  const html = await res.text();
+  const html = await getListingHtml(url);
 
   const title = extractTitle(html);
   const description = extractDescription(html);
   const price = extractPrice(html);
 
-  if (!title && !description) {
+  if (!title.trim() && !description.trim()) {
     throw new Error(
-      "Bu linkten ürün bilgisi okunamadı (site içeriği gizliyor olabilir). Lütfen fotoğraf yükleyin.",
+      "Bu sayfadan ürün bilgisi okunamadı — içerik JavaScript ile yükleniyor veya bot koruması var. " +
+        "Tarayıcı eklentisini kullanın (sayfayı kendi tarayıcınızda okur), ya da fotoğraf yükleyin.",
     );
   }
 
