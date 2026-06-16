@@ -60,6 +60,8 @@ export interface ProductAnalysis {
   priceVerdict: string;
   /** Fiyat konumu açıklaması, ör: "Piyasanın ~%8 altında" */
   pricePosition: string;
+  /** Benzer ürünler / piyasa emsalleri (tahmini; unlocker ile gerçek ilanlar gelecek) */
+  comparables: { label: string; price: string; note: string }[];
   pros: string[];
   cons: string[];
   /** Alıcıya tavsiyeler / sorulacak sorular / kontroller */

@@ -25,7 +25,14 @@ KURALLAR:
 - "priceVerdict": istenen fiyatı adil aralıkla kıyasla → "ucuz" (altında), "uygun" (içinde),
   "pahalı" (üstünde) veya veri yetersizse "belirsiz".
 - "pricePosition": kısa açıklama, ör: "Piyasanın ~%8 altında, iyi fırsat".
-- "pros": güçlü yönler. "cons": zayıf yönler/şüpheler.
+- "comparables": Türkiye ikinci el piyasasında bu ürüne BENZER 3-5 alternatif listele
+  (farklı hafıza/yıl/km/donanım veya muadil marka/model). Her biri:
+  "label" (ör: "iPhone 13 256GB" / "Ford Focus 2016 Dizel"),
+  "price" (yaklaşık ikinci el fiyatı veya aralığı, ör: "23.000-25.000 TL"),
+  "note" (bu ilana göre kısa farkı/avantajı, ör: "2 kat hafıza, ~%15 daha pahalı").
+  ÖNEMLİ: Bunlar canlı ilan değil, piyasa bilgisine dayalı TAHMİNİ emsallerdir.
+- "pros": bu ilanın güçlü yönleri — özellikle EMSALLERE ve fiyata kıyasla neden iyi.
+- "cons": zayıf yönler/şüpheler — emsallere kıyasla neden zayıf veya nelere dikkat.
 - "advice": alıcıya somut tavsiyeler — KATEGORİYE GÖRE (otomobilde ekspertiz/tramer;
   elektronikte fatura/garanti/IMEI/pil sağlığı; mobilyada hasar/leke/koku; pazarlık payı;
   sorulacak sorular).
@@ -58,6 +65,14 @@ export const APPRAISE_SCHEMA: Schema = {
     currency: STR,
     priceVerdict: STR,
     pricePosition: STR,
+    comparables: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: { label: STR, price: STR, note: STR },
+        required: ["label", "price", "note"],
+      },
+    },
     pros: STR_ARR,
     cons: STR_ARR,
     advice: STR_ARR,
@@ -77,6 +92,7 @@ export const APPRAISE_SCHEMA: Schema = {
     "currency",
     "priceVerdict",
     "pricePosition",
+    "comparables",
     "pros",
     "cons",
     "advice",
