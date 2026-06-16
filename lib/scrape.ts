@@ -17,6 +17,9 @@ const MAX_IMG_BYTES = 6 * 1024 * 1024;
 const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
 const SCRAPER_PROVIDER = (process.env.SCRAPER_PROVIDER || "scrapingbee").toLowerCase();
 
+// crawl4ai scraper servisi (gerçek headless tarayıcı). Tanımlıysa ilk sırada denenir.
+const CRAWLER_URL = process.env.CRAWLER_URL;
+
 function unlockerUrl(target: string): string | null {
   if (!SCRAPER_API_KEY) return null;
   const enc = encodeURIComponent(target);
@@ -165,6 +168,50 @@ function extractImageUrl(html: string, base: string): string | undefined {
   }
 }
 
+// crawl4ai servisinden yapılandırılmış veri çeker (gerçek headless tarayıcı).
+async function fetchViaCrawler(targetUrl: string, host: string): Promise<ScrapedListing | null> {
+  if (!CRAWLER_URL) return null;
+  try {
+    const res = await fetchWithTimeout(
+      `${CRAWLER_URL.replace(/\/$/, "")}/scrape`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: targetUrl }),
+      },
+      70000,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data?.ok) return null;
+
+    let imageBase64: string | undefined;
+    let mediaType: string | undefined;
+    for (const u of Array.isArray(data.imageUrls) ? data.imageUrls.slice(0, 5) : []) {
+      const img = await fetchImageAsBase64(String(u));
+      if (img) {
+        imageBase64 = img.base64;
+        mediaType = img.mediaType;
+        break;
+      }
+    }
+
+    const title = (data.title || "").toString();
+    const description = (data.description || "").toString();
+    const price = (data.price || "").toString();
+    return {
+      title,
+      description,
+      price,
+      imageBase64,
+      mediaType,
+      asDescription: buildAsDescription({ title, description, price, source: host }),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Sayfa HTML'ini getirir: önce doğrudan, bot koruması varsa (anahtar tanımlıysa)
 // ticari unlocker servisi üzerinden. İçerik yoksa net hata fırlatır.
 async function getListingHtml(url: URL): Promise<string> {
@@ -214,6 +261,13 @@ export async function fetchListing(rawUrl: string): Promise<ScrapedListing> {
   if (!/^https?:$/.test(url.protocol)) throw new Error("Sadece http/https linkleri desteklenir.");
   assertPublicHost(url.hostname);
 
+  // 1) crawl4ai servisi (tanımlıysa) — gerçek tarayıcıyla render
+  const viaCrawler = await fetchViaCrawler(rawUrl, url.hostname);
+  if (viaCrawler && (viaCrawler.title.trim() || viaCrawler.description.trim())) {
+    return viaCrawler;
+  }
+
+  // 2) doğrudan fetch / opsiyonel unlocker
   const html = await getListingHtml(url);
 
   const title = extractTitle(html);
