@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { VehicleAnalysis, VehicleResponse } from "@/lib/types";
+import type { ProductAnalysis, AppraiseResponse } from "@/lib/types";
 
 const LOADING_MESSAGES = [
   "İlan okunuyor...",
-  "Araç tanımlanıyor...",
+  "Ürün tanımlanıyor...",
   "Piyasa değeri hesaplanıyor...",
   "Artılar ve eksiler çıkarılıyor...",
   "Alıcı tavsiyeleri hazırlanıyor...",
@@ -27,8 +27,8 @@ export default function Home() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [details, setDetails] = useState("");
   const [showDetails, setShowDetails] = useState(false);
-  const [result, setResult] = useState<VehicleAnalysis | null>(null);
-  const [source, setSource] = useState<VehicleResponse["source"] | null>(null);
+  const [result, setResult] = useState<ProductAnalysis | null>(null);
+  const [source, setSource] = useState<AppraiseResponse["source"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
 
@@ -66,14 +66,14 @@ export default function Home() {
       setLoadingMsg(LOADING_MESSAGES[i]);
     }, 1400);
     try {
-      let data: VehicleResponse;
+      let data: AppraiseResponse;
       try {
         const res = await fetch("/api/value", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        data = (await res.json()) as VehicleResponse;
+        data = (await res.json()) as AppraiseResponse;
       } finally {
         clearInterval(interval);
       }
@@ -158,13 +158,13 @@ export default function Home() {
       <main className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-6">
         <header className="mb-6 text-center">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200/70 backdrop-blur">
-            🚗 Akıllı alım asistanı
+            🛒 Akıllı alım asistanı
           </span>
           <h1 className="mt-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-500 bg-clip-text text-3xl font-black tracking-tight text-transparent">
             Almadan Önce
           </h1>
           <p className="mt-1.5 text-sm text-slate-500">
-            İlan linkini yapıştır; fiyatı piyasayla kıyaslayalım, artı-eksisini söyleyelim.
+            Herhangi bir ürünün ilan linkini yapıştır; fiyatı piyasayla kıyaslayalım, artı-eksisini söyleyelim.
           </p>
         </header>
 
@@ -292,14 +292,14 @@ function ComposeView({
     <div className="flex flex-col gap-4">
       <Card className="p-4">
         <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Araç ilan linki
+          İlan linki
         </label>
         <input
           type="url"
           inputMode="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://www.sahibinden.com/ilan/... veya letgo / arabam linki"
+          placeholder="https://... herhangi bir ilan linki (Sahibinden, Letgo, Dolap...)"
           className="w-full rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
         />
         <p className="mt-2 text-[11px] leading-snug text-slate-400">
@@ -344,7 +344,7 @@ function ComposeView({
               value={details}
               onChange={(e) => setDetails(e.target.value)}
               rows={5}
-              placeholder="Ör: Ford Focus 1.6 TDCi Trend X, 2015, 150.000 km, 385.000 TL, değişensiz, masrafsız..."
+              placeholder="Ör: iPhone 13 128GB, %89 pil, 18.000 TL — veya — Ford Focus 2015, 150.000 km, 385.000 TL, değişensiz..."
               className="w-full resize-none rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
             />
           </Card>
@@ -361,7 +361,7 @@ function ComposeView({
 
       {url.trim().length === 0 && !manualReady && (
         <ol className="space-y-2 px-1 text-sm text-slate-500">
-          <li>1️⃣ Araç ilan linkini yapıştır</li>
+          <li>1️⃣ Ürün ilan linkini yapıştır</li>
           <li>2️⃣ Verileri getir, kontrol et</li>
           <li>3️⃣ Analiz et: fiyat konumu + artı/eksi + tavsiye ✅</li>
         </ol>
@@ -380,7 +380,7 @@ function LoadingView({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center gap-6 py-16">
       <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-sky-500 text-4xl shadow-xl shadow-emerald-300/40">
-        🚗
+        🛒
         <div className="shimmer absolute inset-0 animate-shimmer rounded-3xl" />
       </div>
       <div className="flex items-center gap-3">
@@ -403,22 +403,33 @@ function ResultView({
   source,
   onReset,
 }: {
-  result: VehicleAnalysis;
-  source: VehicleResponse["source"] | null;
+  result: ProductAnalysis;
+  source: AppraiseResponse["source"] | null;
   onReset: () => void;
 }) {
   const fmt = (n: number) => new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(n);
   const v = VERDICT[result.priceVerdict] ?? VERDICT.belirsiz;
-  const specs = [result.year, result.km].filter((x) => x && x !== "-").join(" · ");
+  const subtitle = [result.category, result.brand, result.condition]
+    .filter((x) => x && x !== "-")
+    .join(" · ");
 
   return (
     <div className="flex flex-col gap-4">
       <Card className="p-4">
         <h2 className="text-base font-bold leading-snug text-slate-900">{result.title}</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          {[result.make, result.model].filter(Boolean).join(" ")}
-          {specs && ` · ${specs}`}
-        </p>
+        {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+        {result.keySpecs?.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {result.keySpecs.map((s, i) => (
+              <span
+                key={i}
+                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
         <div className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold text-white ${v.cls}`}>
           {v.label}
         </div>
@@ -508,16 +519,16 @@ function ListCard({
 function PaywallView({ onReset }: { onReset: () => void }) {
   return (
     <Card className="flex flex-col items-center gap-5 p-6 text-center">
-      <div className="text-4xl">🚗</div>
+      <div className="text-4xl">🛒</div>
       <h2 className="text-lg font-bold text-slate-900">Günlük ücretsiz hakkın doldu</h2>
-      <p className="text-sm text-slate-500">Daha fazla araç analizi için bir paket seç:</p>
+      <p className="text-sm text-slate-500">Daha fazla ürün analizi için bir paket seç:</p>
       <div className="w-full space-y-3">
         <div className="rounded-2xl border border-emerald-300/60 bg-emerald-50/70 p-4 text-left">
           <p className="font-semibold text-slate-800">20 Analiz Kredisi</p>
           <p className="text-sm text-slate-500">Tek seferlik · 49 TL</p>
         </div>
         <div className="rounded-2xl border border-slate-200 p-4 text-left">
-          <p className="font-semibold text-slate-800">Araba Alırken — Hafta</p>
+          <p className="font-semibold text-slate-800">Almadan Önce — Hafta</p>
           <p className="text-sm text-slate-500">7 gün sınırsız · 99 TL</p>
         </div>
       </div>

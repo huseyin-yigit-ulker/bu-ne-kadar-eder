@@ -37,16 +37,18 @@ export interface AnalysisResult {
   material: string;
 }
 
-// "Almadan Önce" — araç alım asistanı analizi
-export interface VehicleAnalysis {
-  /** Normalize başlık, ör: "Ford Focus 1.6 TDCi Trend X, 2015" */
+// "Almadan Önce" — her ürün için alıcı asistanı analizi
+export interface ProductAnalysis {
+  /** Normalize başlık, ör: "Apple iPhone 13 128GB" / "Ford Focus 1.6 TDCi, 2015" */
   title: string;
-  make: string;
-  model: string;
-  /** Model yılı, "2015" veya "-" */
-  year: string;
-  /** Kilometre, "150.000 km" veya "-" */
-  km: string;
+  /** Ürün kategorisi, ör: "Akıllı Telefon", "Otomobil", "Koltuk Takımı" */
+  category: string;
+  /** Marka veya "-" */
+  brand: string;
+  /** Ürünü belirleyen önemli özellikler (kategoriye göre): yıl/km, hafıza/pil, ölçü/malzeme... */
+  keySpecs: string[];
+  /** Tahmini durum */
+  condition: string;
   /** İlanda istenen fiyat, "385.000 TL" veya "-" */
   listedPrice: string;
   /** Tahmini adil piyasa değeri alt bandı (TL) */
@@ -70,9 +72,9 @@ export interface VehicleAnalysis {
   confidence: string;
 }
 
-export interface VehicleResponse {
+export interface AppraiseResponse {
   ok: boolean;
-  result?: VehicleAnalysis;
+  result?: ProductAnalysis;
   /** Çekilen ham ilan bilgisi (önizleme/şeffaflık için) */
   source?: { title: string; price: string; from: string };
   error?: string;

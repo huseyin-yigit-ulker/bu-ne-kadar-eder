@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Almadan Önce — AI araç alım asistanı",
+  title: "Almadan Önce — AI alım asistanı",
   description:
-    "Araç ilan linkini yapıştır; yapay zeka fiyatı piyasayla kıyaslasın, artı-eksisini ve alıcı tavsiyelerini versin.",
+    "Herhangi bir ürünün ilan linkini yapıştır; yapay zeka fiyatı piyasayla kıyaslasın, artı-eksisini ve alıcı tavsiyelerini versin.",
 };
 
 export const viewport: Viewport = {

@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { consume, peek, getClientIp } from "@/lib/ratelimit";
-import { analyzeVehicle } from "@/lib/gemini";
+import { appraiseListing } from "@/lib/gemini";
 import { fetchListing } from "@/lib/scrape";
-import type { VehicleAnalysis, VehicleResponse } from "@/lib/types";
+import type { ProductAnalysis, AppraiseResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
 
-// "Almadan Önce" — araç ilan linki (veya elle yapıştırılan detay) → alıcı analizi.
-export async function POST(req: Request): Promise<NextResponse<VehicleResponse>> {
+// "Almadan Önce" — ilan linki (veya elle yapıştırılan detay) → alıcı analizi (her ürün).
+export async function POST(req: Request): Promise<NextResponse<AppraiseResponse>> {
   const ip = getClientIp(req);
 
   const status = peek(ip);
@@ -35,7 +35,7 @@ export async function POST(req: Request): Promise<NextResponse<VehicleResponse>>
 
   // 1) Veriyi topla: link varsa çek (crawl4ai/unlocker), yoksa/eklenemezse elle detay
   const parts: string[] = [];
-  let source: VehicleResponse["source"];
+  let source: AppraiseResponse["source"];
 
   if (url) {
     try {
@@ -76,9 +76,9 @@ export async function POST(req: Request): Promise<NextResponse<VehicleResponse>>
   }
 
   // 2) Analiz
-  let result: VehicleAnalysis;
+  let result: ProductAnalysis;
   try {
-    result = await analyzeVehicle(listingText);
+    result = await appraiseListing(listingText);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analiz hatası.";
     console.error("[value] hata:", message);
