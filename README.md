@@ -1,11 +1,18 @@
-# Bu Ne Kadar Eder? 🔍
+# Almadan Önce 🚗
 
-İnsanların üşengeçliğini ortadan kaldıran "ağrı kesici" bir mikro-SaaS: eşyanın
-fotoğrafını çek → yapay zeka saniyeler içinde **fiyatını belirlesin** ve
-**kopyalanmaya hazır ilan metnini** yazsın.
+AI araç alım asistanı: bir **ilan linki** yapıştır → yapay zeka aracı tanısın,
+istenen fiyatı **piyasayla kıyaslasın** (ucuz/uygun/pahalı), **artı-eksisini** ve
+**alıcı tavsiyelerini** versin. Amaç: almadan önce doğru karar.
 
-> Telefon kamerasıyla çek → AI piyasayı tarasın → fiyat skalası + ilan metni →
-> tek tıkla kopyala, sat.
+> İlan linki → fiyat konumu (±) + adil değer aralığı + artı/eksi + riskler + tavsiye.
+
+**Veri kaynağı (hibrit):** Link, gerçek headless tarayıcıyla (crawl4ai) çekilir; bot
+korumalı siteler (Sahibinden vb.) için kullanıcı ilan detayını elle yapıştırabilir veya
+tarayıcı eklentisiyle sayfayı okutabilir. Fiyat değerlendirmesi şimdilik AI piyasa
+bilgisine dayanır; gerçek cross-site emsal taraması (unlocker/proxy ile) planlı.
+
+> Not: Eski "Bu Ne Kadar Eder?" (foto → fiyat → ilan) akışının kodu repoda duruyor
+> (`app/api/analyze`, `lib/prompt.ts`, `lib/platforms.ts`); ürün araç alım asistanına evrildi.
 
 ## Özellikler (MVP)
 

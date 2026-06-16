@@ -248,7 +248,7 @@ async function getListingHtml(url: URL): Promise<string> {
         "Tarayıcı eklentisini kullanın — sayfayı kendi tarayıcınızda okur ve engele takılmaz.",
     );
   }
-  throw new Error("Sayfa alınamadı. Tarayıcı eklentisini kullanın veya fotoğraf yükleyin.");
+  throw new Error("Sayfa alınamadı. Tarayıcı eklentisini kullanın veya ilan detayını elle yapıştırın.");
 }
 
 export async function fetchListing(rawUrl: string): Promise<ScrapedListing> {
@@ -277,7 +277,7 @@ export async function fetchListing(rawUrl: string): Promise<ScrapedListing> {
   if (!title.trim() && !description.trim()) {
     throw new Error(
       "Bu sayfadan ürün bilgisi okunamadı — içerik JavaScript ile yükleniyor veya bot koruması var. " +
-        "Tarayıcı eklentisini kullanın (sayfayı kendi tarayıcınızda okur), ya da fotoğraf yükleyin.",
+        "Tarayıcı eklentisini kullanın (sayfayı kendi tarayıcınızda okur), ya da ilan detayını elle yapıştırın.",
     );
   }
 

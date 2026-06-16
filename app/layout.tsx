@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Bu Ne Kadar Eder? — AI ile saniyede fiyatla & ilan yaz",
+  title: "Almadan Önce — AI araç alım asistanı",
   description:
-    "Eşyanın fotoğrafını çek, yapay zeka saniyeler içinde fiyatını belirlesin ve kopyalanmaya hazır ilanını yazsın.",
+    "Araç ilan linkini yapıştır; yapay zeka fiyatı piyasayla kıyaslasın, artı-eksisini ve alıcı tavsiyelerini versin.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0ea5e9",
+  themeColor: "#059669",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

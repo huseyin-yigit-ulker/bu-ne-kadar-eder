@@ -2,7 +2,8 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SYSTEM_PROMPT, userInstruction, RESULT_SCHEMA } from "./prompt";
-import type { AnalysisResult } from "./types";
+import { VEHICLE_SYSTEM_PROMPT, vehicleInstruction, VEHICLE_SCHEMA } from "./vehicle";
+import type { AnalysisResult, VehicleAnalysis } from "./types";
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
@@ -70,4 +71,32 @@ export async function analyzeListing(
   });
 
   return JSON.parse(text) as AnalysisResult;
+}
+
+/** Araç ilan metnini analiz eder (görselsiz) — "Almadan Önce" alıcı asistanı. */
+export async function analyzeVehicle(listing: string): Promise<VehicleAnalysis> {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("CONFIG_MISSING: GEMINI_API_KEY tanımlı değil.");
+  if (!listing.trim()) throw new Error("Analiz için ilan bilgisi gerekli.");
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: MODEL,
+    systemInstruction: VEHICLE_SYSTEM_PROMPT,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: VEHICLE_SCHEMA,
+      maxOutputTokens: 2048,
+      thinkingConfig: { thinkingBudget: 0 },
+    } as Record<string, unknown>,
+  });
+
+  const text = await withRetry(async () => {
+    const response = await model.generateContent(vehicleInstruction(listing));
+    const t = response.response.text();
+    if (!t) throw new Error("Modelden boş yanıt alındı.");
+    return t;
+  });
+
+  return JSON.parse(text) as VehicleAnalysis;
 }
