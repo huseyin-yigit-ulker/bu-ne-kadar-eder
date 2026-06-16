@@ -13,9 +13,18 @@ const LOADING_MESSAGES = [
 
 type Stage = "compose" | "loading" | "result" | "paywall";
 
+interface ScrapedPreview {
+  title: string;
+  description: string;
+  price: string;
+  asDescription: string;
+}
+
 export default function Home() {
   const [stage, setStage] = useState<Stage>("compose");
   const [url, setUrl] = useState("");
+  const [scraped, setScraped] = useState<ScrapedPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [details, setDetails] = useState("");
   const [showDetails, setShowDetails] = useState(false);
   const [result, setResult] = useState<VehicleAnalysis | null>(null);
@@ -87,9 +96,43 @@ export default function Home() {
     }
   };
 
-  const analyze = () => {
-    if (!url.trim() && !details.trim()) return;
-    void run({ url: url.trim() || undefined, details: details.trim() || undefined });
+  // 1. adım: linkten veriyi getir (model yok, ücretsiz hak harcamaz)
+  const fetchPreview = async () => {
+    if (!url.trim()) return;
+    setError(null);
+    setScraped(null);
+    setPreviewLoading(true);
+    try {
+      const res = await fetch("/api/preview-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const data = await res.json();
+      if (!data.ok || !data.listing) {
+        setError(data.error ?? "Veri alınamadı.");
+        setShowDetails(true); // engellendi → elle yapıştırma alanını aç
+        return;
+      }
+      setScraped(data.listing as ScrapedPreview);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Veri alınamadı.");
+      setShowDetails(true);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // 2. adım: getirilen (veya elle girilen) veriyi analiz et
+  const analyzeScraped = () => {
+    if (!scraped) return;
+    const note = details.trim() ? `\nKullanıcı notu: ${details.trim()}` : "";
+    void run({ details: scraped.asDescription + note });
+  };
+
+  const analyzeManual = () => {
+    if (!details.trim()) return;
+    void run({ details: details.trim() });
   };
 
   const reset = () => {
@@ -97,6 +140,8 @@ export default function Home() {
     setResult(null);
     setSource(null);
     setUrl("");
+    setScraped(null);
+    setPreviewLoading(false);
     setDetails("");
     setShowDetails(false);
     setError(null);
@@ -127,11 +172,16 @@ export default function Home() {
           <ComposeView
             url={url}
             setUrl={setUrl}
+            scraped={scraped}
+            previewLoading={previewLoading}
+            onFetchPreview={fetchPreview}
+            onClearScraped={() => setScraped(null)}
+            onAnalyzeScraped={analyzeScraped}
+            onAnalyzeManual={analyzeManual}
             details={details}
             setDetails={setDetails}
             showDetails={showDetails}
             setShowDetails={setShowDetails}
-            onAnalyze={analyze}
             error={error}
           />
         )}
@@ -162,23 +212,82 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 function ComposeView({
   url,
   setUrl,
+  scraped,
+  previewLoading,
+  onFetchPreview,
+  onClearScraped,
+  onAnalyzeScraped,
+  onAnalyzeManual,
   details,
   setDetails,
   showDetails,
   setShowDetails,
-  onAnalyze,
   error,
 }: {
   url: string;
   setUrl: (v: string) => void;
+  scraped: ScrapedPreview | null;
+  previewLoading: boolean;
+  onFetchPreview: () => void;
+  onClearScraped: () => void;
+  onAnalyzeScraped: () => void;
+  onAnalyzeManual: () => void;
   details: string;
   setDetails: (v: string) => void;
   showDetails: boolean;
   setShowDetails: (v: boolean) => void;
-  onAnalyze: () => void;
   error: string | null;
 }) {
-  const canSubmit = url.trim().length > 0 || details.trim().length > 0;
+  // 2. ADIM: veriler getirildi, onay bekliyor
+  if (scraped) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Card className="p-4">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+            ✓ İlan verileri alındı
+          </p>
+          <p className="text-sm font-bold leading-snug text-slate-900">
+            {scraped.title || "(başlık okunamadı)"}
+          </p>
+          {scraped.price && <p className="mt-0.5 text-xs font-semibold text-emerald-600">{scraped.price}</p>}
+          {scraped.description && (
+            <p className="mt-1 line-clamp-4 text-xs text-slate-500">{scraped.description}</p>
+          )}
+        </Card>
+
+        <Card className="p-4">
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Ek not (opsiyonel)
+          </label>
+          <textarea
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+            rows={2}
+            placeholder="Eklemek istediğin detay (gerçek km, hasar, masraf vb.)"
+            className="w-full resize-none rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+          />
+        </Card>
+
+        {error && <ErrorNote text={error} />}
+
+        <button
+          onClick={onAnalyzeScraped}
+          className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-500 py-4 text-base font-bold text-white shadow-lg shadow-emerald-300/50 transition active:scale-[0.99]"
+        >
+          Almadan Önce Analiz Et 🔍
+        </button>
+        <button
+          onClick={onClearScraped}
+          className="rounded-2xl bg-white/80 py-3 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200 backdrop-blur"
+        >
+          Başka Link Dene
+        </button>
+      </div>
+    );
+  }
+
+  // 1. ADIM: link gir → veriyi getir (veya elle detay)
+  const manualReady = showDetails && details.trim().length > 0;
   return (
     <div className="flex flex-col gap-4">
       <Card className="p-4">
@@ -194,54 +303,76 @@ function ComposeView({
           className="w-full rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
         />
         <p className="mt-2 text-[11px] leading-snug text-slate-400">
-          Bazı siteler (ör. Sahibinden) otomatik erişimi engelleyebilir. Engellenirse ilan
-          bilgilerini elle yapıştırabilirsin.
+          Önce ilan verisi getirilir, sana gösterilir; onaylarsan analiz edilir. Bazı siteler
+          (ör. Sahibinden) otomatik erişimi engeller — o zaman ilan bilgilerini elle yapıştır.
         </p>
       </Card>
+
+      {error && <ErrorNote text={error} />}
+
+      {url.trim().length > 0 && (
+        <button
+          onClick={onFetchPreview}
+          disabled={previewLoading}
+          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-500 py-4 text-base font-bold text-white shadow-lg shadow-emerald-300/50 transition active:scale-[0.99] disabled:opacity-60"
+        >
+          {previewLoading ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Veriler getiriliyor…
+            </>
+          ) : (
+            "Verileri Getir 🔎"
+          )}
+        </button>
+      )}
 
       {!showDetails ? (
         <button
           onClick={() => setShowDetails(true)}
           className="self-start px-1 text-xs font-medium text-emerald-600"
         >
-          + İlan detayını elle gir
+          + İlan detayını elle gir (site engellerse)
         </button>
       ) : (
-        <Card className="p-4">
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-            İlan detayı (marka, model, yıl, km, fiyat, açıklama)
-          </label>
-          <textarea
-            value={details}
-            onChange={(e) => setDetails(e.target.value)}
-            rows={5}
-            placeholder="Ör: Ford Focus 1.6 TDCi Trend X, 2015, 150.000 km, 385.000 TL, değişensiz, masrafsız..."
-            className="w-full resize-none rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-          />
-        </Card>
+        <>
+          <Card className="p-4">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+              İlan detayı (marka, model, yıl, km, fiyat, açıklama)
+            </label>
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              rows={5}
+              placeholder="Ör: Ford Focus 1.6 TDCi Trend X, 2015, 150.000 km, 385.000 TL, değişensiz, masrafsız..."
+              className="w-full resize-none rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </Card>
+          {manualReady && (
+            <button
+              onClick={onAnalyzeManual}
+              className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-500 py-4 text-base font-bold text-white shadow-lg shadow-emerald-300/50 transition active:scale-[0.99]"
+            >
+              Almadan Önce Analiz Et 🔍
+            </button>
+          )}
+        </>
       )}
 
-      {error && (
-        <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-100">
-          {error}
-        </p>
-      )}
-
-      {canSubmit ? (
-        <button
-          onClick={onAnalyze}
-          className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-500 py-4 text-base font-bold text-white shadow-lg shadow-emerald-300/50 transition active:scale-[0.99]"
-        >
-          Almadan Önce Analiz Et 🔍
-        </button>
-      ) : (
+      {url.trim().length === 0 && !manualReady && (
         <ol className="space-y-2 px-1 text-sm text-slate-500">
           <li>1️⃣ Araç ilan linkini yapıştır</li>
-          <li>2️⃣ Fiyatı piyasayla kıyaslayalım</li>
-          <li>3️⃣ Artı-eksi + alıcı tavsiyesini al ✅</li>
+          <li>2️⃣ Verileri getir, kontrol et</li>
+          <li>3️⃣ Analiz et: fiyat konumu + artı/eksi + tavsiye ✅</li>
         </ol>
       )}
     </div>
+  );
+}
+
+function ErrorNote({ text }: { text: string }) {
+  return (
+    <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-100">{text}</p>
   );
 }
 
