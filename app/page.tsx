@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ProductAnalysis, AppraiseResponse } from "@/lib/types";
+import type { ProductAnalysis, AppraiseResponse, MarketResponse } from "@/lib/types";
 
 const LOADING_MESSAGES = [
   "İlan okunuyor...",
@@ -11,7 +11,7 @@ const LOADING_MESSAGES = [
   "Alıcı tavsiyeleri hazırlanıyor...",
 ];
 
-type Stage = "compose" | "loading" | "result" | "paywall";
+type Stage = "compose" | "loading" | "result" | "paywall" | "scan";
 
 interface ScrapedPreview {
   title: string;
@@ -29,6 +29,7 @@ export default function Home() {
   const [showDetails, setShowDetails] = useState(false);
   const [result, setResult] = useState<ProductAnalysis | null>(null);
   const [source, setSource] = useState<AppraiseResponse["source"] | null>(null);
+  const [scan, setScan] = useState<MarketResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
 
@@ -41,7 +42,9 @@ export default function Home() {
       try {
         const res = await fetch(`/api/ingest?id=${encodeURIComponent(id)}`);
         const data = await res.json();
-        if (data.ok && data.listing) {
+        if (data.ok && data.kind === "scan" && Array.isArray(data.items)) {
+          void runMarket(data.items);
+        } else if (data.ok && data.listing) {
           const l = data.listing;
           const text = [l.title, l.price, l.description].filter(Boolean).join("\n");
           setDetails(text);
@@ -96,6 +99,44 @@ export default function Home() {
     }
   };
 
+  // Eklentiden gelen ilan listesini piyasa analizine gönder
+  const runMarket = async (items: { title: string; price: string; url: string }[]) => {
+    setError(null);
+    setStage("loading");
+    let i = 0;
+    const interval = setInterval(() => {
+      i = (i + 1) % LOADING_MESSAGES.length;
+      setLoadingMsg(LOADING_MESSAGES[i]);
+    }, 1400);
+    try {
+      let data: MarketResponse;
+      try {
+        const res = await fetch("/api/market", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+        });
+        data = (await res.json()) as MarketResponse;
+      } finally {
+        clearInterval(interval);
+      }
+      if (data.paywall) {
+        setStage("paywall");
+        return;
+      }
+      if (!data.ok) {
+        setError(data.error ?? "Bir hata oluştu.");
+        setStage("compose");
+        return;
+      }
+      setScan(data);
+      setStage("scan");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Analiz başarısız oldu.");
+      setStage("compose");
+    }
+  };
+
   // 1. adım: linkten veriyi getir (model yok, ücretsiz hak harcamaz)
   const fetchPreview = async () => {
     if (!url.trim()) return;
@@ -139,6 +180,7 @@ export default function Home() {
     setStage("compose");
     setResult(null);
     setSource(null);
+    setScan(null);
     setUrl("");
     setScraped(null);
     setPreviewLoading(false);
@@ -189,6 +231,7 @@ export default function Home() {
         {stage === "result" && result && (
           <ResultView result={result} source={source} onReset={reset} />
         )}
+        {stage === "scan" && scan && <ScanView data={scan} onReset={reset} />}
         {stage === "paywall" && <PaywallView onReset={reset} />}
 
         <footer className="mt-auto pt-8 text-center text-xs text-slate-400">
@@ -559,6 +602,79 @@ function ListCard({
         ))}
       </ul>
     </Card>
+  );
+}
+
+function ScanView({ data, onReset }: { data: MarketResponse; onReset: () => void }) {
+  const fmt = (n: number) => new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(n);
+  const a = data.analysis;
+  const s = data.stats;
+  const items = (data.items ?? [])
+    .slice()
+    .sort((x, y) => (x.priceValue ?? Infinity) - (y.priceValue ?? Infinity));
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card className="p-4">
+        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+          🔁 Piyasa taraması (gerçek ilanlar)
+        </p>
+        {a?.product && <h2 className="text-base font-bold text-slate-900">{a.product}</h2>}
+        {s && s.count > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl bg-slate-50 py-2">
+              <p className="text-[10px] text-slate-400">En düşük</p>
+              <p className="text-sm font-bold text-emerald-600">{fmt(s.min)}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 py-2">
+              <p className="text-[10px] text-slate-400">Ortanca</p>
+              <p className="text-sm font-bold text-slate-700">{fmt(s.median)}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 py-2">
+              <p className="text-[10px] text-slate-400">En yüksek</p>
+              <p className="text-sm font-bold text-rose-600">{fmt(s.max)}</p>
+            </div>
+          </div>
+        )}
+        {a?.priceSummary && <p className="mt-3 text-sm leading-relaxed text-slate-700">{a.priceSummary}</p>}
+      </Card>
+
+      {a && <ListCard title="🔍 Fiyatı ne belirliyor" items={a.insights} tone="sky" />}
+      {a && <ListCard title="💡 Alıcı tavsiyeleri" items={a.advice} tone="emerald" />}
+      {a && <ListCard title="🚨 Dikkat" items={a.watchOut} tone="amber" />}
+
+      <Card className="p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Bulunan ilanlar ({items.length}) — ucuzdan pahalıya
+        </p>
+        <div className="space-y-2">
+          {items.map((it, i) => (
+            <a
+              key={i}
+              href={it.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-2xl bg-slate-50 px-3 py-2 transition active:scale-[0.99] hover:bg-slate-100"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm font-medium text-slate-700">{it.title}</span>
+                <span className="flex-shrink-0 text-sm font-bold text-emerald-600">
+                  {it.price || "—"}
+                </span>
+              </div>
+              {it.source && <p className="mt-0.5 text-[11px] font-medium text-sky-600">{it.source} ↗</p>}
+            </a>
+          ))}
+        </div>
+      </Card>
+
+      <button
+        onClick={onReset}
+        className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-500 py-4 text-base font-bold text-white shadow-lg shadow-emerald-300/50 transition active:scale-[0.99]"
+      >
+        Yeni Analiz
+      </button>
+    </div>
   );
 }
 

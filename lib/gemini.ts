@@ -3,7 +3,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SYSTEM_PROMPT, userInstruction, RESULT_SCHEMA } from "./prompt";
 import { APPRAISE_SYSTEM_PROMPT, appraiseInstruction, APPRAISE_SCHEMA } from "./appraise";
-import type { AnalysisResult, ProductAnalysis } from "./types";
+import { MARKET_SYSTEM_PROMPT, marketInstruction, MARKET_SCHEMA } from "./market";
+import type { AnalysisResult, ProductAnalysis, MarketAnalysis, ScanItem } from "./types";
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
@@ -99,4 +100,32 @@ export async function appraiseListing(listing: string): Promise<ProductAnalysis>
   });
 
   return JSON.parse(text) as ProductAnalysis;
+}
+
+/** Piyasa taraması — gerçek ilan listesini yorumlar. */
+export async function appraiseMarket(items: ScanItem[]): Promise<MarketAnalysis> {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("CONFIG_MISSING: GEMINI_API_KEY tanımlı değil.");
+  if (!items.length) throw new Error("Analiz için ilan listesi gerekli.");
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: MODEL,
+    systemInstruction: MARKET_SYSTEM_PROMPT,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: MARKET_SCHEMA,
+      maxOutputTokens: 2048,
+      thinkingConfig: { thinkingBudget: 0 },
+    } as Record<string, unknown>,
+  });
+
+  const text = await withRetry(async () => {
+    const response = await model.generateContent(marketInstruction(items));
+    const t = response.response.text();
+    if (!t) throw new Error("Modelden boş yanıt alındı.");
+    return t;
+  });
+
+  return JSON.parse(text) as MarketAnalysis;
 }

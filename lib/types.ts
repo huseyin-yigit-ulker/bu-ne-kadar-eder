@@ -74,6 +74,39 @@ export interface ProductAnalysis {
   confidence: string;
 }
 
+// Eklentinin arama sayfasından topladığı gerçek ilan
+export interface ScanItem {
+  title: string;
+  price: string;
+  url: string;
+  source?: string;
+  /** Fiyatın sayısal değeri (TL) — sunucuda hesaplanır */
+  priceValue?: number;
+}
+
+export interface MarketAnalysis {
+  /** Bu ilanların hangi ürün/aralık olduğu */
+  product: string;
+  /** Fiyat dağılımı yorumu */
+  priceSummary: string;
+  /** Fiyat farkını ne belirliyor */
+  insights: string[];
+  /** Alıcı tavsiyeleri */
+  advice: string[];
+  /** Dikkat/riskler */
+  watchOut: string[];
+}
+
+export interface MarketResponse {
+  ok: boolean;
+  items?: ScanItem[];
+  stats?: { count: number; min: number; median: number; max: number; currency: string };
+  analysis?: MarketAnalysis;
+  error?: string;
+  remaining?: number;
+  paywall?: boolean;
+}
+
 export interface AppraiseResponse {
   ok: boolean;
   result?: ProductAnalysis;
