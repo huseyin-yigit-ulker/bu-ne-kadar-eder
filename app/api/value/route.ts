@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { consume, peek, getClientIp } from "@/lib/ratelimit";
 import { appraiseListing } from "@/lib/gemini";
 import { fetchListing } from "@/lib/scrape";
+import { searchComparables } from "@/lib/comparables";
 import type { ProductAnalysis, AppraiseResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -75,10 +76,20 @@ export async function POST(req: Request): Promise<NextResponse<AppraiseResponse>
     );
   }
 
-  // 2) Analiz
+  // 2) Gerçek benzer ilanları ara (arama API'si tanımlıysa; yoksa boş → AI tahminine düşer)
+  const query = source?.title?.trim() || details.split("\n")[0]?.trim() || "";
+  const realComps = await searchComparables(query);
+  let listingForAI = listingText;
+  if (realComps.length > 0) {
+    listingForAI +=
+      "\n\nPiyasadaki benzer CANLI ilanlar (gerçek):\n" +
+      realComps.map((c) => `- ${c.label} | ${c.price} | ${c.source}`).join("\n");
+  }
+
+  // 3) Analiz
   let result: ProductAnalysis;
   try {
-    result = await appraiseListing(listingText);
+    result = await appraiseListing(listingForAI);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analiz hatası.";
     console.error("[value] hata:", message);
@@ -99,6 +110,9 @@ export async function POST(req: Request): Promise<NextResponse<AppraiseResponse>
       { status: 502 },
     );
   }
+
+  // Gerçek ilanlar bulunduysa AI'nin tahmini emsallerini onlarla değiştir (linkli)
+  if (realComps.length > 0) result.comparables = realComps;
 
   const after = consume(ip);
   return NextResponse.json({ ok: true, result, source, remaining: after.remaining });

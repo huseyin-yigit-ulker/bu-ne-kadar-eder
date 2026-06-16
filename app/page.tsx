@@ -453,27 +453,51 @@ function ResultView({
         </div>
       </div>
 
-      {result.comparables?.length > 0 && (
-        <Card className="p-4">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            🔁 Benzer ürünler / piyasa emsalleri
-          </p>
-          <p className="mb-3 text-[11px] text-slate-400">
-            Tahmini emsaller (canlı ilan değil). Gerçek ilan taraması yakında.
-          </p>
-          <div className="space-y-2">
-            {result.comparables.map((c, i) => (
-              <div key={i} className="rounded-2xl bg-slate-50 px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-slate-700">{c.label}</span>
-                  <span className="flex-shrink-0 text-sm font-bold text-emerald-600">{c.price}</span>
-                </div>
-                {c.note && <p className="mt-0.5 text-[11px] text-slate-500">{c.note}</p>}
+      {result.comparables?.length > 0 &&
+        (() => {
+          const real = result.comparables.some((c) => c.url);
+          return (
+            <Card className="p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                🔁 {real ? "Benzer ilanlar (gerçek)" : "Benzer ürünler / piyasa emsalleri"}
+              </p>
+              <p className="mb-3 text-[11px] text-slate-400">
+                {real
+                  ? "Arama sonucu canlı ilanlar — dokunup ilana gidebilirsin."
+                  : "Tahmini emsaller (canlı ilan değil)."}
+              </p>
+              <div className="space-y-2">
+                {result.comparables.map((c, i) => {
+                  const inner = (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-slate-700">{c.label}</span>
+                        <span className="flex-shrink-0 text-sm font-bold text-emerald-600">{c.price}</span>
+                      </div>
+                      {c.source && <p className="mt-0.5 text-[11px] font-medium text-sky-600">{c.source} ↗</p>}
+                      {c.note && <p className="mt-0.5 text-[11px] text-slate-500">{c.note}</p>}
+                    </>
+                  );
+                  return c.url ? (
+                    <a
+                      key={i}
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-2xl bg-slate-50 px-3 py-2 transition active:scale-[0.99] hover:bg-slate-100"
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    <div key={i} className="rounded-2xl bg-slate-50 px-3 py-2">
+                      {inner}
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
+            </Card>
+          );
+        })()}
 
       <ListCard title="✅ Artılar (emsallere göre)" items={result.pros} tone="emerald" />
       <ListCard title="⚠️ Eksiler / şüpheler (emsallere göre)" items={result.cons} tone="rose" />
